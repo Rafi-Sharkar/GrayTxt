@@ -1,0 +1,230 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // url      = env("DATABASE_URL")
+}
+
+// -----------------------------
+// ENUMS
+// -----------------------------
+enum NotificationStatus {
+  ON
+  OFF
+}
+
+enum Themes {
+  DARK
+  LIGHT
+}
+
+enum Languages {
+  ENGLISH
+  BANGLA
+  HINDI
+}
+
+enum Countries {
+  BANGLADESH
+  INDIA
+  PAKISTAN
+  NEPAL
+  SRILANKA
+}
+
+// -----------------------------
+// Types
+// -----------------------------
+// Address composite type removed because Postgres does not support Prisma composite types.
+// Its fields have been inlined into the UserProfiles model.
+
+// -----------------------------
+// USERS
+// -----------------------------
+model Users {
+  id             String    @id @default(uuid())
+  userName       String    @db.VarChar(45)
+  fullName       String    @db.VarChar(45)
+  email          String    @unique
+  password       String
+  userSince      DateTime  @default(now())
+  lastLogin      DateTime?
+  active         Boolean?
+  profilePicture String?
+  userUpdatedAt  DateTime  @updatedAt
+
+  profiles       UserProfiles[]     @relation("User_UserProfile_11")
+  settings       UserSettings?
+  notifications  UserNotifications?
+  grays          Grays[]
+  favoriteGrays  Favorites[]
+  likedGrays     GrayLikes[]
+  viewedGrays    GrayViews[]
+  commentedGrays GrayComments[]
+  followers      UserFollows[]      @relation("Followers")
+  following      UserFollows[]      @relation("Followings")
+
+  @@map("Users")
+}
+
+// -----------------------------
+// USER PROFILES
+// -----------------------------
+
+model UserProfiles {
+  userId      String     @id
+  description String?    @db.VarChar(600)
+  state       String?
+  country     Countries?
+  website     String[] // multivalue field
+  birthDate   DateTime?
+
+  user Users @relation("User_UserProfile_11", fields: [userId], references: [id])
+
+  @@map("UserProfiles")
+}
+
+// USER SETTINGS
+// -----------------------------
+model UserSettings {
+  userId   String     @id
+  theme    Themes     @default(LIGHT)
+  language Languages  @default(ENGLISH)
+  country  Countries?
+
+  user Users @relation(fields: [userId], references: [id])
+
+  @@map("UserSettings")
+}
+
+// -----------------------------
+// USER NOTIFICATIONS
+// -----------------------------
+model UserNotifications {
+  userId               String             @id
+  emailNotifications   NotificationStatus
+  pushNotifications    NotificationStatus
+  notificationMessages NotificationStatus
+
+  user Users @relation(fields: [userId], references: [id])
+
+  @@map("UserNotifications")
+}
+
+// -----------------------------
+// GRAYS
+// -----------------------------
+model Grays {
+  id              String     @id @default(uuid())
+  userId          String
+  grayTxt         String     @db.VarChar(511)
+  grayPhoto       String?
+  grayVideo       String?
+  inReplyToGrayId String?    @db.VarChar(511)
+  inReplyToUserId String?    @db.VarChar(511)
+  retweetCount    Int        @default(0)
+  favoriteCount   Int        @default(0)
+  language        Languages?
+  country         Countries?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user Users @relation(fields: [userId], references: [id])
+
+  grayFavorites Favorites[]
+  grayLikes     GrayLikes[]
+  grayViews     GrayViews[]
+  grayComments  GrayComments[]
+
+  @@map("Grays")
+}
+
+// -----------------------------
+// FAVORITES
+// -----------------------------
+model Favorites {
+  userId      String
+  grayId      String
+  favoritedAt DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id])
+  gray Grays @relation(fields: [grayId], references: [id])
+
+  @@id([userId, grayId])
+  @@map("Favorites")
+}
+
+// -----------------------------
+// GRAY LIKES
+// -----------------------------
+model GrayLikes {
+  userId   String
+  grayId   String
+  likeSent DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id])
+  gray Grays @relation(fields: [grayId], references: [id])
+
+  @@id([userId, grayId])
+  @@map("GrayLikes")
+}
+
+// -----------------------------
+// GRAY VIEWS
+// -----------------------------
+model GrayViews {
+  userId    String
+  grayId    String
+  viewCount Int
+
+  user Users @relation(fields: [userId], references: [id])
+  gray Grays @relation(fields: [grayId], references: [id])
+
+  @@id([userId, grayId])
+  @@map("GrayViews")
+}
+
+// -----------------------------
+// GRAY COMMENTS
+// -----------------------------
+model GrayComments {
+  id        String   @id @default(uuid())
+  userId    String
+  grayId    String
+  comment   String?  @db.VarChar(255)
+  commentAt DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id])
+  gray Grays @relation(fields: [grayId], references: [id])
+
+  // Self-relation for replies
+  parentId      String?
+  parentComment GrayComments?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies       GrayComments[] @relation("CommentReplies")
+
+  @@map("GrayComments")
+}
+
+// -----------------------------
+// USER FOLLOWS
+// -----------------------------
+model UserFollows {
+  followerId  String
+  followingId String
+  followedAt  DateTime @default(now())
+
+  follower  Users @relation("Followers", fields: [followerId], references: [id])
+  following Users @relation("Followings", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+  @@map("UserFollows")
+}
